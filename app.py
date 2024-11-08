@@ -3,7 +3,7 @@ import requests
 
 app = Flask(__name__)
 
-brave_key = 'BSAjdpzNenLcG9UCpbQn_uP6A7yy10h'
+brave_key = 'BSAnLBXo1M0ViAYxmnpWZwbUsLJ0hiR'
 search_url = 'https://api.search.brave.com/res/v1/web/search'
 
 
