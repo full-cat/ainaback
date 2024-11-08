@@ -3,7 +3,6 @@ import requests
 from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
-from inference import translate
 
 app = Flask(__name__)
 
@@ -39,8 +38,7 @@ def proxy():
             if "<" in original_text.strip() or ">" in original_text.strip() or len(original_text.strip())  == 0 or "html" == text_element.strip():
                 continue
 
-            translation = translate(text_element.strip())
-            text_element.replace_with(translation)
+            text_element.replace_with("🔥" + text_element.strip())
             # new_text = f"+{original_text}"
             # text_element.replace_with(new_text)
 
