@@ -119,6 +119,15 @@ def chatbot_single_sentence(sentence):
 
     if not sentence:
         return "input error"
+
+    model_name = "BSC-LT/salamandra-7b-instruct-aina-hack"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    headers = {
+        "Accept" : "application/json",
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
     
     system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
 
