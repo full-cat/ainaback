@@ -10,7 +10,7 @@ HF_TOKEN = "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"
 TRANSLATION_URL = "https://o9vasr2oal4oyt2j.us-east-1.aws.endpoints.huggingface.cloud"
 CHATBOT_URL = "https://hijbc1ux6ie03ouo.us-east-1.aws.endpoints.huggingface.cloud"
 TTL_URL = "https://x6g02u4lkf25gcjo.us-east-1.aws.endpoints.huggingface.cloud/api/tts"
-SPEECH_RECOGNITION_URL = "https://ddb95svxi9vs16zy.us-east-1.aws.endpoints.huggingface.cloud"
+SPEECH_RECOGNITION_URL = "https://h3xisjmpemyv68l1.us-east-1.aws.endpoints.huggingface.cloud"
 
 
 
