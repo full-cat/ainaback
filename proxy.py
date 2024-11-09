@@ -153,7 +153,7 @@ def get_translate():
 
 
 
-@app.route("/chatbot", methods=["POST"])
+@app.route("/chatbot", methods=["GET"])
 def chatbot():
     sentence = request.args.get("sentence")
     response = chatbot_single_sentence(sentence)
