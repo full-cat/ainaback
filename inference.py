@@ -1,4 +1,3 @@
-# pip install torch transformers python-dotenv requests
 import requests
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -10,6 +9,7 @@ HF_TOKEN = "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"
 TRANSLATION_URL = "https://o9vasr2oal4oyt2j.us-east-1.aws.endpoints.huggingface.cloud"
 CHATBOT_URL = "https://hijbc1ux6ie03ouo.us-east-1.aws.endpoints.huggingface.cloud"
 TTL_URL = "https://x6g02u4lkf25gcjo.us-east-1.aws.endpoints.huggingface.cloud/api/tts"
+SPEECH_RECOGNITION_URL = "https://ddb95svxi9vs16zy.us-east-1.aws.endpoints.huggingface.cloud"
 
 
 
@@ -169,7 +169,10 @@ def chatbot_single_sentence(sentence):
         "Content-Type": "application/json"
     }
     
-    system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
+    system_prompt = "Ets un assistent virtual a Catalan. Respon sempre a Català. \
+                    Respon amb frases elaborades, donant informació útil respecte a l'input \
+                    que et doni de l'usuari. Respon sempre de manera seriosa. Intenta cenyir-te \
+                    el màxim possible al que et demana l'input"
 
     message = [ { "role": "system", "content": system_prompt} ]
     message += [ { "role": "user", "content": sentence } ]
@@ -214,3 +217,28 @@ def tts_single_sentence(sentence, voice=25):
     except requests.exceptions.RequestException as e:
         print(f"Error generating TTS response for sentence '{sentence}': {e}")
         return f"Error generating TTS response: {e}"
+
+
+
+## SPEECH RECOGNITION RELATED FUNCTIONS ##
+def speech_recognition_single_audio(audio):
+    """
+    This function sends a single audio to the speech recognition model and returns the generated text
+    """
+
+    if not audio:
+        return "input error"
+
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "audio/wav",
+    }
+
+    try:
+        response = requests.post(SPEECH_RECOGNITION_URL, headers=headers, data=audio)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating speech recognition response for audio: {e}")
+        return f"Error generating speech recognition response: {e}"
