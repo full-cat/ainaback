@@ -1,14 +1,15 @@
 # pip install torch transformers python-dotenv requests
 import requests
 from transformers import AutoTokenizer, AutoModelForCausalLM
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
+import time
+from langdetect import detect
 
 
 HF_TOKEN = "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"
 TRANSLATION_URL = "https://o9vasr2oal4oyt2j.us-east-1.aws.endpoints.huggingface.cloud"
 CHATBOT_URL = "https://hijbc1ux6ie03ouo.us-east-1.aws.endpoints.huggingface.cloud"
+
 
 # A dictionary for translating languages from codes to names
 LanguageCodes = {
@@ -20,7 +21,27 @@ LanguageCodes = {
 }
 
 
-def translate_sentence(sentence, src_lang_code, tgt_lang_code):
+def detect_language(sentence):
+    """
+    This function detects the language of a sentence
+    """
+    language_code = detect(sentence)
+    return LanguageCodes.get(language_code, "English")
+
+
+
+def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
+    """
+    This function translates a single sentence from the source language to the target language
+    """
+
+    print("source language code: ", src_lang_code)
+
+    # If there is no source language code or it is None, try to detect the language
+    if not src_lang_code or src_lang_code == "None":
+        src_lang_code = detect_language(sentence)
+    # Language detection fails sometimes
+    #print(f"Translating from {src_lang_code} to {tgt_lang_code}")
 
     headers = {
         "Accept": "application/json",
@@ -46,66 +67,116 @@ def translate_sentence(sentence, src_lang_code, tgt_lang_code):
 
 
 
+def translate_batch(sentences, src_lang_code=None, tgt_lang_code='Catalan'):
+    """
+    This function translates a batch of sentences sequentially
+    """
 
-
-def translate_batch(sentences, src_lang_code='English', tgt_lang_code='Catalan'):
-    if not sentences or not src_lang_code or not tgt_lang_code:
+    print("source language code: ", src_lang_code)
+    if not sentences or not tgt_lang_code:
         return ['input error'] * len(sentences)
 
-    translations = []
+    translations = {}
+
+    start_time = time.time()
     for sentence in sentences:
-        translation = translate(sentence, src_lang_code, tgt_lang_code)
-        translations.append(translation)
+        translation = translate_single_sentence(sentence, src_lang_code, tgt_lang_code)
+        translations[sentence] = translation
     
+    print(f"Translated {len(sentences)} sentences in {time.time() - start_time:.2f} seconds")
+
     return translations
 
 
 
-def translate_batch_parallel(sentences, src_lang_code='English', tgt_lang_code='Catalan'):
-    if not sentences or not src_lang_code or not tgt_lang_code:
+def translate_batch_parallel(sentences, src_lang_code=None, tgt_lang_code='Catalan'):
+    """
+    This function translates a batch of sentences in parallel using multiple threads
+    """
+
+    if not sentences or not tgt_lang_code:
         return ['input error'] * len(sentences)
     
     translations = {}
+    start_time = time.time()
+
     with ThreadPoolExecutor() as executor:
         # Submit each sentence to be translated in a separate thread
-        future_to_sentence = {executor.submit(translate_sentence, sentence, src_lang_code, tgt_lang_code): sentence for sentence in sentences}
+        future_to_sentence = {executor.submit(translate_single_sentence, sentence, src_lang_code, tgt_lang_code): sentence for sentence in sentences}
         
         # Collect the results as they complete
         for future in as_completed(future_to_sentence):
             sentence = future_to_sentence[future]
             translations[sentence] = future.result()
     
+    print(f"Translated {len(sentences)} sentences in {time.time() - start_time:.2f} seconds")
+
     return translations
 
 
 
 
-# This option is limited to batch sizes of 4 sentences
-def translate_batch_openai(sentences, src_lang_code='Spanish', tgt_lang_code='Catalan'):
+def chatbot_single_sentence(sentence):
+    """
+    This function sends a single sentence to the chatbot model and returns the generated response
+    """
 
-    # Lazy import to avoid loading the library when not needed
-    from openai import OpenAI
+    if not sentence:
+        return "input error"
+    
+    system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
 
-    if not sentences or not src_lang_code or not tgt_lang_code:
-        return ['input error'] * len(sentences)
+    message = [ { "role": "system", "content": system_prompt} ]
+    message += [ { "role": "user", "content": sentence } ]
+    prompt = tokenizer.apply_chat_template(
+        message,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
 
-    prompts = [f'[{src_lang_code}] {sentence} \n[{tgt_lang_code}]: ' for sentence in sentences]
-
-    print('Prompts:', prompts)
+    payload = {
+        "inputs": prompt,
+        "parameters": {}
+    }
 
     try:
-        chat_completion = translation_client.completions.create(
-            model="tgi",
-            prompt=prompts,
-            stream=False,
-            max_tokens=1000,
-            temperature=0.00,
+        response = requests.post(CHATBOT_URL + "/generate", headers=headers, json=payload, timeout=5)
+        response.raise_for_status()
+        return response.json()["generated_text"]
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating chatbot response for sentence '{sentence}': {e}")
+        return f"Error generating chatbot response: {e}"
 
-        )
-        ordered_translations = sorted(chat_completion.choices, key=lambda choice: choice.index)
-        translations = [choice.text for choice in ordered_translations]
-        print(translations)
-        return translations
-    except Exception as e:
-        print(f"Error during translation: {e}")
-        return ['Inference error'] * len(sentences)
+
+
+def train_translation_model(sentences):
+    """
+    This function receives a dict containing original texts as keys and corrected translated texts as values
+    The dict is used to fine tune the model
+    """
+    # Load the tokenizer and model
+    model_id = "BSC-LT/salamandra-7b-instruct-aina-hack"
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        device_map="auto",
+        torch_dtype=torch.bfloat16
+    )
+
+    # Prepare the training data
+    training_data = []
+    for original_text, corrected_text in sentences.items():
+        src_lang_code = detect_language(original_text)
+        tgt_lang_code = detect_language(corrected_text)
+        training_data.append(f"[{src_lang_code}] {original_text} \n[{tgt_lang_code}] {corrected_text}")
+
+    # Tokenize the training data
+    tokenized_data = tokenizer(training_data, return_tensors="pt", padding=True, truncation=True)
+
+    # Fine-tune the model
+    model.train()
+
+    # Update the model at the endpoint
+    # ...
+
+
