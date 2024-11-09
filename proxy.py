@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
-from inference import translate_batch_parallel
+from inference import translate_batch_parallel, chatbot_single_sentence
 
 try:
     from selenium import webdriver
@@ -83,8 +83,8 @@ def proxy():
 
     # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
     # print(texts_to_translate)
-    # translated_texts = translate_batch_parallel(texts_to_translate, src_lang_code="English", tgt_lang_code="Catalan")
-    translated_texts = {k: k for k in texts_to_translate}
+    translated_texts = translate_batch_parallel(texts_to_translate, tgt_lang_code="Catalan")
+    # translated_texts = {k: k for k in texts_to_translate}
 
     for original_text, translated_text in translated_texts.items():
         r.hset(target_url, original_text, translated_text)
@@ -150,6 +150,18 @@ def get_translate():
 
     print(translations)
     return {"message": "No translations found"}, 404
+
+
+
+@app.route("/chatbot", methods=["POST"])
+def chatbot():
+    # get json data
+    sentence = request.args.get("sentence")
+    print('Sentence to chatbot:', sentence)
+    response = chatbot_single_sentence(sentence)
+    print('Response from chatbot:', response)
+    return {"response": response}
+
 
 
 # @app.route('/<path:filename>')
