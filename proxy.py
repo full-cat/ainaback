@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from urllib.parse import urlparse
 from flask_cors import CORS
 
-from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence
+# from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence
 
 try:
     from selenium import webdriver
@@ -57,26 +57,22 @@ def proxy():
 
     soup = BeautifulSoup(target_content, "html.parser")
 
-    texts = []
+    original_texts = []
+    text_elements = []
     for text_element in soup.find_all(string=True):
-        if text_element.parent.name in ["script", "style"] or isinstance(text_element, Comment):
-            continue
         if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
             original_text = text_element.strip()
             # Filter out empty strings and HTML tags
-            if (
-                "<" in original_text
-                or ">" in original_text
-                or len(original_text) == 0
-                or original_text.lower() == "html"
-            ):
-                continue
-            texts.append(original_text)
+            if "<" in original_text or ">" in original_text or len(original_text) == 0 or "html" == text_element or "{" in text_element or "}" in text_element:
+                    continue
+            text_elements.append(text_element)
+            original_texts.append(original_text)
+
 
     cached_translations = {}
     texts_to_translate = []
 
-    for text in texts:
+    for text in original_texts:
         if translated_text := r.hget(target_url, text):
             translated_text = translated_text.decode("utf-8")
             print(f"{original_text} -> {translated_text} (cached)")
@@ -87,7 +83,7 @@ def proxy():
 
     # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
     # print(texts_to_translate)
-    #translated_texts = translate_batch_parallel(texts_to_translate, tgt_lang_code="Catalan")
+    # translated_texts = translate_batch_parallel(texts_to_translate, tgt_lang_code="Catalan")
     translated_texts = {k: k + "🔥" for k in texts_to_translate}
 
     for original_text, translated_text in translated_texts.items():
@@ -97,9 +93,9 @@ def proxy():
     translated_texts.update(cached_translations)
 
     # Reemplazar el texto original con el texto traducido
-    for original_text, translated_text in translated_texts.items():
-        for text_element in soup.find_all(string=True):
-            if original_text in text_element:
+    for  original_text, translated_text in translated_texts.items():
+        for text_element in text_elements:
+            if original_text ==  text_element.strip():
                 text_element.replace_with(translated_text)
 
     # Reemplazar todos los enlaces en el HTML
@@ -157,23 +153,23 @@ def get_translate():
 
 
 
-@app.route("/chatbot", methods=["POST"])
-def chatbot():
-    sentence = request.args.get("sentence")
-    response = chatbot_single_sentence(sentence)
-    return {"response": response}
+# @app.route("/chatbot", methods=["POST"])
+# def chatbot():
+#     sentence = request.args.get("sentence")
+#     response = chatbot_single_sentence(sentence)
+#     return {"response": response}
 
 
-@app.route("/tts", methods=["POST"])
-def tts():
-    sentence = request.args.get("sentence")
-    #Take voice args if present
-    voice = request.args.get("voice")
-    if voice:
-        response = tts_single_sentence(sentence, voice)
-    else:
-        response = tts_single_sentence(sentence)
-    return {"response": response}
+# @app.route("/tts", methods=["POST"])
+# def tts():
+#     sentence = request.args.get("sentence")
+#     #Take voice args if present
+#     voice = request.args.get("voice")
+#     if voice:
+#         response = tts_single_sentence(sentence, voice)
+#     else:
+#         response = tts_single_sentence(sentence)
+#     return {"response": response}
 
 
 
