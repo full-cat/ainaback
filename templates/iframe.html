@@ -9,7 +9,7 @@
     <style>
         .iframe-container {
             width: 100%;
-            height: 100%;
+            height: "165px";
         }
     </style>
 </head>
@@ -20,9 +20,10 @@
         <div class="aina-floating-button" id="ainaFloatingButton">
             <img src="{{ url_for('static', filename='aina.png' ) }}" alt="Button Icon" class="aina-button-icon">
         </div>
-        <div class="iframe-container">
-            {{ content | safe }}
-        </div>
+        <!-- <iframe src="http://localhost:5000/translate?url={{ target }}" width="800" height="600"></iframe> -->
+        <!-- <iFrame scrolling="no" frameborder="0" width="100%" height="100%" src="http://localhost:5000/translate?url={{ target }}">&nbsp;</iFrame> -->
+        <iframe scrolling="yes" frameborder="0" width="100%" height="800px" src="http://localhost:5000/translate?url={{ target }}">&nbsp;</iframe>
+
     </div>
     <div id="popupModal" class="modal">
         <div class="modal-content">
