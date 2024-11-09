@@ -43,8 +43,8 @@ def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
     print("source language code: ", src_lang_code)
 
     # If there is no source language code or it is None, try to detect the language
-    if not src_lang_code or src_lang_code == "None":
-        src_lang_code = detect_language(sentence)
+    # if not src_lang_code or src_lang_code == "None":
+        # src_lang_code = detect_language(sentence)
     # Language detection fails sometimes
     #print(f"Translating from {src_lang_code} to {tgt_lang_code}")
 

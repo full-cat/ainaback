@@ -32,6 +32,7 @@ openPopupBtn.addEventListener('click', async (event) => {
     const data = await response.json();
     if (data.originalText) {
         modalText.innerText = '"' + data.originalText + '"';
+        textInput.placeholder = data.translatedText;
     } else {
         modalText.innerText = 'No translation found for "' + selectedText + '"';
     }
@@ -67,7 +68,7 @@ popupForm.addEventListener('submit', async (event) => {
         });
 
         if (response.ok) {
-            alert('Text submitted successfully!');
+            alert('Gràcies per la teva col·laboració!');
         } else {
             alert('Failed to submit text.');
         }

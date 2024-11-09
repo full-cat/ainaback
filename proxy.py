@@ -52,8 +52,8 @@ def proxy():
     if not target_url:
         return "URL no proporcionada", 400
 
-    target_content = get_content_selenium(target_url)
-    # target_content = get_content_requests(target_url)
+    # target_content = get_content_selenium(target_url)
+    target_content = get_content_requests(target_url)
 
     soup = BeautifulSoup(target_content, "html.parser")
 
@@ -146,7 +146,7 @@ def get_translate():
         original = original.decode("utf-8")
         translation = translation.decode("utf-8")
         if text in translation:
-            return {"originalText": original}, 200
+            return {"originalText": original, "translatedText": translation}, 200
 
     print(translations)
     return {"message": "No translations found"}, 404
