@@ -44,6 +44,22 @@ def get_content_selenium(target_url):
         driver.quit()
 
 
+brave_key = 'BSAnLBXo1M0ViAYxmnpWZwbUsLJ0hiR'
+search_url = 'https://api.search.brave.com/res/v1/web/search'
+
+
+@app.route('/search')
+def search():
+    query = request.args.get('q')
+    headers = {
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip',
+        'X-Subscription-Token': brave_key
+    }
+    response = requests.get(search_url, params={'q': query}, headers=headers)
+    return response.json()
+
+
 @app.route("/proxy", methods=["GET"])
 def proxy():
     global base_url
@@ -179,7 +195,10 @@ def speech_recognition():
 
     audio_file = request.files['audio']
     response = speech_recognition_single_audio(audio_file)
+    print(response)
+    response = response.split(":")[1].replace('"', '').replace("}", "")
     return {"response": response}
+
 
 
 # @app.route('/<path:filename>')
