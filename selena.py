@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import time
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
+from inference import translate_batch_parallel
 
 
 app = Flask(__name__)
@@ -44,18 +45,25 @@ def proxy():
         # Procesar el HTML con BeautifulSoup
         soup = BeautifulSoup(page_source, "html.parser")
         
-           # Traducir y modificar solo los textos
+        original_texts = []
+
         for text_element in soup.find_all(string=True):
             if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
-                # Reemplaza la palabra sin afectar los estilos ni la estructura
-                #cleaned_text = text_element.replace("fuck", "")
-                original_text = text_element
-                if "<" in original_text.strip() or ">" in original_text.strip() or len(original_text.strip())  == 0 or "html" == text_element.strip():
+                original_text = text_element.strip()
+                # Filter out empty strings and HTML tags
+                if "<" in original_text or ">" in original_text or len(original_text) == 0 or original_text.lower() == "html":
                     continue
+                # Add the original text to the list
+                original_texts.append(original_text)
 
-                text_element.replace_with("🔥" + text_element.strip())
-                # new_text = f"+{original_text}"
-                # text_element.replace_with(new_text)
+        # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
+        translated_texts = translate_batch_parallel(original_texts, src_lang_code='English', tgt_lang_code='Euskera')
+
+        # Replace the original text with the translated text
+        for original_text, translated_text in translated_texts.items():
+            for text_element in soup.find_all(string=True):
+                if original_text in text_element:
+                    text_element.replace_with(translated_text)
 
         # replace all links in html
         # Find all <a> tags
