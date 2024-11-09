@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
-from inference import translate_batch_parallel, chatbot_single_sentence
+from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence
 
 try:
     from selenium import webdriver
@@ -155,11 +155,15 @@ def get_translate():
 
 @app.route("/chatbot", methods=["POST"])
 def chatbot():
-    # get json data
     sentence = request.args.get("sentence")
-    print('Sentence to chatbot:', sentence)
     response = chatbot_single_sentence(sentence)
-    print('Response from chatbot:', response)
+    return {"response": response}
+
+
+@app.route("/tts", methods=["POST"])
+def tts():
+    sentence = request.args.get("sentence")
+    response = tts_single_sentence(sentence)
     return {"response": response}
 
 
