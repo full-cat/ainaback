@@ -1,81 +1,110 @@
 from flask import Flask, request, Response, render_template
 import requests
 import redis
+import time
 from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
+
+from inference import translate_batch_parallel
+
+try:
+    from selenium import webdriver
+    from webdriver_manager.chrome import ChromeDriverManager
+    from selenium.webdriver.chrome.service import Service
+except ImportError:
+    pass
 
 app = Flask(__name__)
 r = redis.Redis(host="localhost", port=6379, db=0)
 
 
+def get_content_requests(target_url):
+    res = requests.get(target_url)
+    return res.content
+
+
+def get_content_selenium(target_url):
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Modo sin ventana
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    try:
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(target_url)
+        time.sleep(5)
+        page_source = driver.page_source
+        return page_source
+    finally:
+        driver.quit()
+
+
 @app.route("/proxy", methods=["GET"])
 def proxy():
-    # Obtener la URL de la página principal desde los parámetros
     global base_url
-    url = request.args.get("url")
-    print(url)
-    print(urlparse(url).netloc)
-    base_url = "https://" + urlparse(url).netloc
-    if not url:
+    target_url = request.args.get("url")
+    base_url = "https://" + urlparse(target_url).netloc
+    if not target_url:
         return "URL no proporcionada", 400
 
-    # Obtener la página del sitio de destino
-    try:
-        resp = requests.get(url)
-    except requests.RequestException as e:
-        return f"Error al obtener la página: {e}", 500
+    # target_content = get_content_selenium(target_url)
+    target_content = get_content_requests(target_url)
 
-    # Si la respuesta no es HTML, devolverla sin modificar
-    content_type = resp.headers.get("Content-Type", "")
-    if "text/html" not in content_type:
-        return Response(resp.content, content_type=content_type)
+    soup = BeautifulSoup(target_content, "html.parser")
 
-    # Modificar el HTML si es una página web
-    soup = BeautifulSoup(resp.content, "html.parser")
-
-    # Traducir y modificar solo los textos
+    texts = []
     for text_element in soup.find_all(string=True):
+        if text_element.parent.name in ["script", "style"] or isinstance(text_element, Comment):
+            continue
         if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
-            # Reemplaza la palabra sin afectar los estilos ni la estructura
-            # cleaned_text = text_element.replace("fuck", "")
-            original_text = text_element
+            original_text = text_element.strip()
+            # Filter out empty strings and HTML tags
             if (
-                "<" in original_text.strip()
-                or ">" in original_text.strip()
-                or len(original_text.strip()) == 0
-                or "html" == text_element.strip()
+                "<" in original_text
+                or ">" in original_text
+                or len(original_text) == 0
+                or original_text.lower() == "html"
             ):
                 continue
+            texts.append(original_text)
 
-            if translated_text := r.hget(url, original_text):
-                # decode utf-8
-                translated_text = translated_text.decode("utf-8")
-                print(f"{original_text} -> {translated_text} (cached)")
-            else:
-                print(f"Request translate for '{original_text}' ({url})")
+    cached_translations = {}
+    texts_to_translate = []
 
-                # TODO get translation from aina
-                translated_text = "🔥" + text_element.strip() + "🔥"
+    for text in texts:
+        if translated_text := r.hget(target_url, text):
+            translated_text = translated_text.decode("utf-8")
+            print(f"{original_text} -> {translated_text} (cached)")
+            cached_translations[text] = translated_text
+        else:
+            print(f"{text} (not cached)")
+            texts_to_translate.append(text)
 
-                r.hset(url, original_text, translated_text)
-                print(f"{original_text} -> {translated_text} (saved to cache)")
+    # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
+    # print(texts_to_translate)
+    # translated_texts = translate_batch_parallel(texts_to_translate, src_lang_code="English", tgt_lang_code="Catalan")
+    translated_texts = {k: k for k in texts_to_translate}
 
-            text_element.replace_with(translated_text)
-            # new_text = f"+{original_text}"
-            # text_element.replace_with(new_text)
+    for original_text, translated_text in translated_texts.items():
+        r.hset(target_url, original_text, translated_text)
+    
+    # print(translated_texts)
+    translated_texts.update(cached_translations)
 
-    # replace all links in html
-    # Find all <a> tags
+    # Reemplazar el texto original con el texto traducido
+    for original_text, translated_text in translated_texts.items():
+        for text_element in soup.find_all(string=True):
+            if original_text in text_element:
+                text_element.replace_with(translated_text)
+
+    # Reemplazar todos los enlaces en el HTML
     for link in soup.find_all("a"):
-        # Replace the href attribute with a new link (for example, replace it with 'https://new-link.com')
         if link.get("href") is None:
             continue
-        stem = url if link.get("href").startswith("/") else ""
+        stem = target_url if link.get("href").startswith("/") else ""
         if link.get("href"):
             link["href"] = "http://localhost:5000/proxy?url=" + stem + link["href"]
-        # Alternatively, replace the entire content of the <a> tag
-        # link.string = "New Link Text"
 
     # Get the modified HTML content
     modified_html = str(soup)
@@ -91,12 +120,7 @@ def proxy():
     #     elif tag.name == 'spreadsheet' and tag.get('src'):
     #         tag['src'] = urljoin(url, tag['src'])
 
-    # # Convertir el HTML modificado en cadena para enviarlo
-    # modified_html = str(soup)
-
     return render_template("iframe.html", content=modified_html)
-
-    # return Response(modified_html, content_type="text/html")
 
 
 @app.route("/feedback", methods=["POST"])
@@ -115,13 +139,16 @@ def get_translate():
     print(url, text)
     translations = r.hgetall(url)
     if not translations:
+        print(translations)
         return {"message": "No translations found"}, 404
 
-    for key in translations.keys():
-        original_text = key.decode("utf-8")
-        if text in original_text:
-            return {"originalText": original_text}, 200
+    for original, translation in translations.items():
+        original = original.decode("utf-8")
+        translation = translation.decode("utf-8")
+        if text in translation:
+            return {"originalText": original}, 200
 
+    print(translations)
     return {"message": "No translations found"}, 404
 
 

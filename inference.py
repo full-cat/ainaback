@@ -63,7 +63,7 @@ def translate_batch(sentences, src_lang_code='English', tgt_lang_code='Catalan')
 
 def translate_batch_parallel(sentences, src_lang_code='English', tgt_lang_code='Catalan'):
     if not sentences or not src_lang_code or not tgt_lang_code:
-        return ['input error'] * len(sentences)
+        return {}
     
     translations = {}
     with ThreadPoolExecutor() as executor:
