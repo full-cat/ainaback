@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from urllib.parse import urlparse
 from flask_cors import CORS
 
-# from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence
+from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence
 
 try:
     from selenium import webdriver
@@ -83,8 +83,8 @@ def proxy():
 
     # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
     # print(texts_to_translate)
-    # translated_texts = translate_batch_parallel(texts_to_translate, tgt_lang_code="Catalan")
-    translated_texts = {k: k + "🔥" for k in texts_to_translate}
+    translated_texts = translate_batch_parallel(texts_to_translate, src_lang_code="Spanish", tgt_lang_code="Catalan")
+    # translated_texts = {k: k + "🔥" for k in texts_to_translate}
 
     for original_text, translated_text in translated_texts.items():
         r.hset(target_url, original_text, translated_text)
@@ -153,23 +153,23 @@ def get_translate():
 
 
 
-# @app.route("/chatbot", methods=["POST"])
-# def chatbot():
-#     sentence = request.args.get("sentence")
-#     response = chatbot_single_sentence(sentence)
-#     return {"response": response}
+@app.route("/chatbot", methods=["POST"])
+def chatbot():
+    sentence = request.args.get("sentence")
+    response = chatbot_single_sentence(sentence)
+    return {"response": response}
 
 
-# @app.route("/tts", methods=["POST"])
-# def tts():
-#     sentence = request.args.get("sentence")
-#     #Take voice args if present
-#     voice = request.args.get("voice")
-#     if voice:
-#         response = tts_single_sentence(sentence, voice)
-#     else:
-#         response = tts_single_sentence(sentence)
-#     return {"response": response}
+@app.route("/tts", methods=["POST"])
+def tts():
+    sentence = request.args.get("sentence")
+    #Take voice args if present
+    voice = request.args.get("voice")
+    if voice:
+        response = tts_single_sentence(sentence, voice)
+    else:
+        response = tts_single_sentence(sentence)
+    return {"response": response}
 
 
 @app.route("/speech_recognition", methods=["POST"])
@@ -205,4 +205,5 @@ def serve_media(filename):
 
 if __name__ == "__main__":
     assert r.ping()
+    r.flushall()
     app.run()
