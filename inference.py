@@ -10,7 +10,7 @@ HF_TOKEN = "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"
 TRANSLATION_URL = "https://o9vasr2oal4oyt2j.us-east-1.aws.endpoints.huggingface.cloud"
 CHATBOT_URL = "https://hijbc1ux6ie03ouo.us-east-1.aws.endpoints.huggingface.cloud"
 
-# A dictionary for translating languages such as 'en' to 'English'
+# A dictionary for translating languages from codes to names
 LanguageCodes = {
     'ca': 'Catalan', 'it': 'Italian', 'pt': 'Portuguese', 'de': 'German', 'en': 'English', 'es': 'Spanish',
     'eu': 'Euskera', 'gl': 'Galician', 'fr': 'French', 'bg': 'Bulgarian', 'cs': 'Czech', 'lt': 'Lithuanian',
@@ -33,11 +33,17 @@ def translate_sentence(sentence, src_lang_code, tgt_lang_code):
     prompt = f'[{src_lang_code}] {sentence} \n[{tgt_lang_code}]'
     payload = {"inputs": prompt, "parameters": {}}
     
-    # Make the HTTP request for the translation
-    response = requests.post(TRANSLATION_URL + "/generate", headers=headers, json=payload)
-    
-    # Return the translated text
-    return response.json()["generated_text"]
+
+    try:
+        # Make the HTTP request for the translation
+        response = requests.post(TRANSLATION_URL + "/generate", headers=headers, json=payload, timeout=5)  # Set a timeout
+        response.raise_for_status()  # Raise an exception for non-200 status codes
+        return response.json()["generated_text"]
+    except requests.exceptions.RequestException as e:
+        print(f"Error translating sentence '{sentence}': {e}")  # Log the error with details
+        return f"Error translating: {e}"
+
+
 
 
 
