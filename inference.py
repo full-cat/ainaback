@@ -40,8 +40,6 @@ def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
     This function translates a single sentence from the source language to the target language
     """
 
-    print("source language code: ", src_lang_code)
-
     # If there is no source language code or it is None, try to detect the language
     if not src_lang_code or src_lang_code == "None":
         src_lang_code = detect_language(sentence)
