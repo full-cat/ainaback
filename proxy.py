@@ -176,6 +176,12 @@ def tts():
     return {"response": response}
 
 
+@app.route("/speech_recognition", methods=["POST"])
+def speech_recognition():
+    audio = request.args.get("audio")
+    response = speech_recognition_single_audio(audio)
+    return {"response": response}
+
 
 # @app.route('/<path:filename>')
 # allow ALL methods
