@@ -5,10 +5,12 @@ const closeModal = document.querySelector('.close');
 const popupForm = document.getElementById('popupForm');
 const textInput = document.getElementById('textInput');
 const modalText = document.getElementById('modalText');
+const frame = document.getElementById('ainaFrame');
 
 // Function to open the modal
 openPopupBtn.addEventListener('click', async (event) => {
-    const selectedText = window.getSelection().toString();
+    const selectedText = frame.getSelection().toString();
+    console.log(selectedText);
     if (!selectedText) {
         alert('Please select some text before submitting.');
         return;
