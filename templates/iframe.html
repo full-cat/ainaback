@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Preview</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='aina.css') }}">
+    <style>
+        .iframe-container {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Floating Button -->
+    <div class="container">
+        <div class="aina-floating-button" id="ainaFloatingButton">
+            <img src="{{ url_for('static', filename='aina.png' ) }}" alt="Button Icon" class="aina-button-icon">
+        </div>
+        <div class="iframe-container">
+            {{ content | safe }}
+        </div>
+    </div>
+    <div id="popupModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Suggereix una millora de traducció</h2>
+            <p id="modalText"></p>
+            <form id="popupForm">
+                <input type="text" id="textInput" placeholder="Enter some text" required>
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='aina.js' ) }}"></script>
+</body>
+
+</html>
