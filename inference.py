@@ -9,6 +9,8 @@ from langdetect import detect
 HF_TOKEN = "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"
 TRANSLATION_URL = "https://o9vasr2oal4oyt2j.us-east-1.aws.endpoints.huggingface.cloud"
 CHATBOT_URL = "https://hijbc1ux6ie03ouo.us-east-1.aws.endpoints.huggingface.cloud"
+TTL_URL = "https://x6g02u4lkf25gcjo.us-east-1.aws.endpoints.huggingface.cloud/api/tts"
+
 
 
 # A dictionary for translating languages from codes to names
@@ -193,4 +195,22 @@ def chatbot_single_sentence(sentence):
 
 
 ## TTS RELATED FUNCTIONS ##
+def tts_single_sentence(sentence, voice=25):
+    """
+    This function sends a single sentence to the TTS model and returns the generated audio
+    """
 
+    if not sentence:
+        return "input error"
+
+    headers = { "Authorization": f"Bearer {HF_TOKEN}",}
+
+    data = {"text": sentence, "voice": voice}
+
+    try:
+        response = requests.post(TTL_URL, headers=headers, json=data)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating TTS response for sentence '{sentence}': {e}")
+        return f"Error generating TTS response: {e}"
