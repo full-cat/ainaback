@@ -2,31 +2,31 @@ from mitmproxy import http
 from bs4 import BeautifulSoup, Comment, NavigableString
 
 def response(flow: http.HTTPFlow) -> None:
-    # Solo interceptamos las respuestas de tipo HTML
+    # Añadir cabeceras CORS
     flow.response.headers["Access-Control-Allow-Origin"] = "*"
-    flow.response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE"
-    flow.response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    flow.response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    flow.response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With"
     flow.response.headers["Access-Control-Allow-Credentials"] = "true"  # Permitir credenciales
+
+    # Eliminar la cabecera Content-Security-Policy si está presente para evitar restricciones de seguridad
+    if "Content-Security-Policy" in flow.response.headers:
+        del flow.response.headers["Content-Security-Policy"]
+
+    # Procesar solo respuestas HTML
     if "text/html" in flow.response.headers.get("content-type", ""):
-        # Parseamos el contenido HTML con BeautifulSoup
         html = flow.response.content
         soup = BeautifulSoup(html, "html.parser")
 
-        # Ejemplo de modificación: eliminar todas las ocurrencias de una palabra específica
-        # for text_element in soup.find_all(string=lambda text: text and "palabra_especifica" in text):
-        #     updated_text = text_element.replace("palabra_especifica", "")
-        #     text_element.replace_with(updated_text)
+        # Modificar el texto de la página
         for text_element in soup.find_all(string=True):
+            # Solo modificar textos válidos (evitar etiquetas y comentarios)
             if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
-                # Reemplaza la palabra sin afectar los estilos ni la estructura
-                #cleaned_text = text_element.replace("fuck", "")
-                original_text = text_element
-                if "<" in original_text.strip() or ">" in original_text.strip() or len(original_text.strip())  == 0 or "html" == text_element.strip():
+                original_text = text_element.strip()
+                # Saltar textos vacíos o que puedan afectar la estructura HTML
+                if "<" in original_text or ">" in original_text or len(original_text) == 0:
                     continue
+                # Añadir un emoji al texto como ejemplo de modificación
+                text_element.replace_with("🔥" + original_text)
 
-                text_element.replace_with("🔥" + text_element.strip())
-                # new_text = f"+{original_text}"
-                # text_element.replace_with(new_text)
-
-        # Actualizamos el contenido HTML de la respuesta con el HTML modificado
+        # Actualizar el contenido HTML en la respuesta
         flow.response.content = str(soup).encode("utf-8")
