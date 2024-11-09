@@ -5,6 +5,7 @@ import time
 from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
+from flask_cors import CORS
 
 from inference import translate_batch_parallel, chatbot_single_sentence
 
@@ -12,10 +13,13 @@ try:
     from selenium import webdriver
     from webdriver_manager.chrome import ChromeDriverManager
     from selenium.webdriver.chrome.service import Service
-except ImportError:
+except ImportError as e:
+    print(e)
     pass
 
 app = Flask(__name__)
+CORS(app)
+
 r = redis.Redis(host="localhost", port=6379, db=0)
 
 
@@ -48,8 +52,8 @@ def proxy():
     if not target_url:
         return "URL no proporcionada", 400
 
-    # target_content = get_content_selenium(target_url)
-    target_content = get_content_requests(target_url)
+    target_content = get_content_selenium(target_url)
+    # target_content = get_content_requests(target_url)
 
     soup = BeautifulSoup(target_content, "html.parser")
 
@@ -83,8 +87,8 @@ def proxy():
 
     # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
     # print(texts_to_translate)
-    translated_texts = translate_batch_parallel(texts_to_translate, tgt_lang_code="Catalan")
-    # translated_texts = {k: k for k in texts_to_translate}
+    #translated_texts = translate_batch_parallel(texts_to_translate, tgt_lang_code="Catalan")
+    translated_texts = {k: k + "🔥" for k in texts_to_translate}
 
     for original_text, translated_text in translated_texts.items():
         r.hset(target_url, original_text, translated_text)
@@ -169,13 +173,15 @@ def chatbot():
 @app.route("/<path:filename>", methods=["GET", "POST", "PUT", "DELETE"])
 def serve_media(filename):
     global base_url
-    print("putilla")
+    print("putilla", base_url)
     # Construir la URL completa para el recurso solicitado
     resource_url = urljoin(base_url, filename)
 
     # Realizar la solicitud para obtener el recurso (imagen, CSS, etc.)
     try:
+        print("resource_url", resource_url) 
         resource_response = requests.get(resource_url)
+        print(resource_response)
         if resource_response.status_code == 200:
             # Determinar el tipo de recurso (imagen, CSS, etc.)
             content_type = resource_response.headers.get("Content-Type")
@@ -188,4 +194,4 @@ def serve_media(filename):
 
 if __name__ == "__main__":
     assert r.ping()
-    app.run(debug=True)
+    app.run()
