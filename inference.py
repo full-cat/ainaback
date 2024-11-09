@@ -76,7 +76,6 @@ def translate_batch(sentences, src_lang_code=None, tgt_lang_code='Catalan'):
     This function translates a batch of sentences sequentially
     """
 
-    print("source language code: ", src_lang_code)
     if not sentences or not tgt_lang_code:
         return 
 
