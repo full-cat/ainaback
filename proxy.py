@@ -1,4 +1,4 @@
-from flask import Flask, request, Response, render_template
+from flask import Flask, jsonify, request, Response, render_template
 import requests
 import redis
 import time
@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from urllib.parse import urlparse
 from flask_cors import CORS
 
-from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence
+from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence, speech_recognition_single_audio
 
 try:
     from selenium import webdriver
@@ -171,11 +171,14 @@ def tts():
         response = tts_single_sentence(sentence)
     return {"response": response}
 
-
+# content type audio/wav
 @app.route("/speech_recognition", methods=["POST"])
 def speech_recognition():
-    audio = request.args.get("audio")
-    response = speech_recognition_single_audio(audio)
+    if 'audio' not in request.files:
+        return jsonify({"error": "No audio file provided"}), 400
+
+    audio_file = request.files['audio']
+    response = speech_recognition_single_audio(audio_file)
     return {"response": response}
 
 

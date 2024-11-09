@@ -3,6 +3,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from langdetect import detect
+from pydub import AudioSegment
 
 
 HF_TOKEN = "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"
@@ -231,13 +232,26 @@ def speech_recognition_single_audio(audio):
     headers = {
         "Accept": "application/json",
         "Authorization": f"Bearer {HF_TOKEN}",
-        "Content-Type": "audio/wav",
+        "Content-Type": "audio/webm",
     }
+
+    # write the audio to a file
+    with open("audio.webm", "wb") as f:
+        f.write(audio.read())
+
+    # convert webm to wav
+    audio = AudioSegment.from_file("audio.webm", format="webm")
+    audio.export("audio.wav", format="wav")
+
+    # read the wav file
+    with open("audio.wav", "rb") as f:
+        audio = f.read()
+    
 
     try:
         response = requests.post(SPEECH_RECOGNITION_URL, headers=headers, data=audio)
         response.raise_for_status()
-        return response.content
+        return response.content.decode("utf-8")
     except requests.exceptions.RequestException as e:
         print(f"Error generating speech recognition response for audio: {e}")
         return f"Error generating speech recognition response: {e}"
