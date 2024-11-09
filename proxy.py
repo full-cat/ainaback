@@ -163,7 +163,12 @@ def chatbot():
 @app.route("/tts", methods=["POST"])
 def tts():
     sentence = request.args.get("sentence")
-    response = tts_single_sentence(sentence)
+    #Take voice args if present
+    voice = request.args.get("voice")
+    if voice:
+        response = tts_single_sentence(sentence, voice)
+    else:
+        response = tts_single_sentence(sentence)
     return {"response": response}
 
 
