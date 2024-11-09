@@ -9,7 +9,9 @@ from urllib.parse import urlparse
 import time
 from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
-
+from inference import translate_batch_parallel
+import json  # Importar json para serializar datos
+import redis
 
 app = Flask(__name__)
 
@@ -44,48 +46,47 @@ def proxy():
         # Procesar el HTML con BeautifulSoup
         soup = BeautifulSoup(page_source, "html.parser")
         
-           # Traducir y modificar solo los textos
+        original_texts = []
+
         for text_element in soup.find_all(string=True):
             if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
-                # Reemplaza la palabra sin afectar los estilos ni la estructura
-                #cleaned_text = text_element.replace("fuck", "")
-                original_text = text_element
-                if "<" in original_text.strip() or ">" in original_text.strip() or len(original_text.strip())  == 0 or "html" == text_element.strip():
+                original_text = text_element.strip()
+                # Filter out empty strings and HTML tags
+                if "<" in original_text or ">" in original_text or len(original_text) == 0 or original_text.lower() == "html":
                     continue
+                # Add the original text to the list
+                original_texts.append(original_text)
 
-                text_element.replace_with("🔥" + text_element.strip())
-                # new_text = f"+{original_text}"
-                # text_element.replace_with(new_text)
+        # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
+        translated_texts = translate_batch_parallel(original_texts, src_lang_code='English', tgt_lang_code='Euskera')
 
-        # replace all links in html
-        # Find all <a> tags
+        # Reemplazar el texto original con el texto traducido
+        for original_text, translated_text in translated_texts.items():
+            for text_element in soup.find_all(string=True):
+                if original_text in text_element:
+                    text_element.replace_with(translated_text)
+
+        # Reemplazar todos los enlaces en el HTML
         for link in soup.find_all('a'):
-            # Replace the href attribute with a new link (for example, replace it with 'https://new-link.com')
             if link.get('href') is None:
                 continue
             stem = url if link.get('href').startswith("/") else ""
             if link.get('href'):
-                link['href'] = "http://localhost:5000/proxy?url=" + stem +  link['href']
-            # Alternatively, replace the entire content of the <a> tag
-            # link.string = "New Link Text"
+                link['href'] = "http://localhost:5000/proxy?url=" + stem + link['href']
 
-        # Get the modified HTML content
+        # Obtener el HTML modificado
         modified_html = str(soup)
 
-        
-        # # Reescribir los recursos estáticos (CSS, imágenes, etc.) para que apunten al proxy
-        # for tag in soup.find_all(['link', 'script', 'img', "spreadsheet"]):
-        #     if tag.name == 'link' and tag.get('href'):
-        #         tag['href'] = urljoin(url, tag['href'])
-        #     elif tag.name == 'script' and tag.get('src'):
-        #         tag['src'] = urljoin(url, tag['src'])
-        #     elif tag.name == 'img' and tag.get('src'):
-        #         tag['src'] = urljoin(url, tag['src'])
-        #     elif tag.name == 'spreadsheet' and tag.get('src'):
-        #         tag['src'] = urljoin(url, tag['src'])
+        # Convertir el diccionario de traducciones a JSON
+        translation_data = {
+            "original_texts": original_texts,
+            "translated_texts": translated_texts
+        }
 
-        # # Convertir el HTML modificado en cadena para enviarlo
-        # modified_html = str(soup)
+        # Subir el diccionario de traducciones a Redis con el formato [clave, valor]
+        r = redis.Redis(host='localhost', port=6379, db=0)
+        r.set(target_url, json.dumps(translation_data))
+
         return Response(modified_html, content_type='text/html')
     
     finally:
