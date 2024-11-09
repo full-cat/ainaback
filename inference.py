@@ -9,6 +9,8 @@ from langdetect import detect
 HF_TOKEN = "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"
 TRANSLATION_URL = "https://o9vasr2oal4oyt2j.us-east-1.aws.endpoints.huggingface.cloud"
 CHATBOT_URL = "https://hijbc1ux6ie03ouo.us-east-1.aws.endpoints.huggingface.cloud"
+TTL_URL = "https://x6g02u4lkf25gcjo.us-east-1.aws.endpoints.huggingface.cloud/api/tts"
+
 
 
 # A dictionary for translating languages from codes to names
@@ -29,6 +31,8 @@ def detect_language(sentence):
     return LanguageCodes.get(language_code, "English")
 
 
+
+## TRANSLATION RELATED FUNCTIONS
 
 def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
     """
@@ -52,7 +56,7 @@ def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
 
     # Generate the prompt and payload for the individual translation request
     prompt = f'[{src_lang_code}] {sentence} \n[{tgt_lang_code}]'
-    payload = {"inputs": prompt, "parameters": {}}
+    payload = {"inputs": prompt, "parameters": {"max_tokens": 1000, "temperature": 0.001}}
     
 
     try:
@@ -112,47 +116,6 @@ def translate_batch_parallel(sentences, src_lang_code=None, tgt_lang_code='Catal
 
 
 
-def chatbot_single_sentence(sentence):
-    """
-    This function sends a single sentence to the chatbot model and returns the generated response
-    """
-
-    if not sentence:
-        return "input error"
-
-    model_name = "BSC-LT/salamandra-7b-instruct-aina-hack"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-    headers = {
-        "Accept" : "application/json",
-        "Authorization": f"Bearer {HF_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
-
-    message = [ { "role": "system", "content": system_prompt} ]
-    message += [ { "role": "user", "content": sentence } ]
-    prompt = tokenizer.apply_chat_template(
-        message,
-        tokenize=False,
-        add_generation_prompt=True,
-    )
-
-    payload = {
-        "inputs": prompt,
-        "parameters": {}
-    }
-
-    try:
-        response = requests.post(CHATBOT_URL + "/generate", headers=headers, json=payload, timeout=5)
-        response.raise_for_status()
-        return response.json()["generated_text"]
-    except requests.exceptions.RequestException as e:
-        print(f"Error generating chatbot response for sentence '{sentence}': {e}")
-        return f"Error generating chatbot response: {e}"
-
-
 
 def train_translation_model(sentences):
     """
@@ -185,3 +148,69 @@ def train_translation_model(sentences):
     # ...
 
 
+
+
+## CHATBOT RELATED FUNCTIONS ##
+
+def chatbot_single_sentence(sentence):
+    """
+    This function sends a single sentence to the chatbot model and returns the generated response
+    """
+
+    if not sentence:
+        return "input error"
+
+    model_name = "BSC-LT/salamandra-7b-instruct-aina-hack"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    headers = {
+        "Accept" : "application/json",
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
+
+    message = [ { "role": "system", "content": system_prompt} ]
+    message += [ { "role": "user", "content": sentence } ]
+    prompt = tokenizer.apply_chat_template(
+        message,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_tokens": 1000, "temperature": 0.5}
+    }
+
+    try:
+        response = requests.post(CHATBOT_URL + "/generate", headers=headers, json=payload, timeout=5)
+        response.raise_for_status()
+        return response.json()["generated_text"]
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating chatbot response for sentence '{sentence}': {e}")
+        return f"Error generating chatbot response: {e}"
+
+
+
+## TTS RELATED FUNCTIONS ##
+def tts_single_sentence(sentence, voice=25):
+    """
+    This function sends a single sentence to the TTS model and returns the generated audio
+    """
+
+    if not sentence:
+        return "input error"
+
+    headers = { "Authorization": f"Bearer {HF_TOKEN}",}
+
+    data = {"text": sentence, "voice": voice}
+
+    try:
+        response = requests.post(TTL_URL, headers=headers, json=data)
+        response.raise_for_status()
+        return response.content
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating TTS response for sentence '{sentence}': {e}")
+        return f"Error generating TTS response: {e}"
