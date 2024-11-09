@@ -1,63 +1,114 @@
-from flask import Flask, request, Response
+from flask import Flask, request, Response, render_template
 import requests
+import redis
+import time
 from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
+from inference import translate_batch_parallel
+
+try:
+    from selenium import webdriver
+    from webdriver_manager.chrome import ChromeDriverManager
+    from selenium.webdriver.chrome.service import Service
+except ImportError:
+    pass
+
 app = Flask(__name__)
+r = redis.Redis(host="localhost", port=6379, db=0)
 
-@app.route('/proxy', methods=['GET'])
-def proxy():
-    # Obtener la URL de la página principal desde los parámetros
-    global base_url
-    url = request.args.get('url')
-    base_url = "https://" + urlparse(url).netloc
-    if not url:
-        return "URL no proporcionada", 400
-    
-    # Obtener la página del sitio de destino
+
+def get_content_requests(target_url):
+    res = requests.get(target_url)
+    return res.content
+
+
+def get_content_selenium(target_url):
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Modo sin ventana
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
     try:
-        resp = requests.get(url)
-    except requests.RequestException as e:
-        return f"Error al obtener la página: {e}", 500
-    
-    # Si la respuesta no es HTML, devolverla sin modificar
-    content_type = resp.headers.get("Content-Type", "")
-    if "text/html" not in content_type:
-        return Response(resp.content, content_type=content_type)
-    
-    # Modificar el HTML si es una página web
-    soup = BeautifulSoup(resp.content, 'html.parser')
-    
-        # Traducir y modificar solo los textos
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver.get(target_url)
+        time.sleep(5)
+        page_source = driver.page_source
+        return page_source
+    finally:
+        driver.quit()
+
+
+@app.route("/proxy", methods=["GET"])
+def proxy():
+    global base_url
+    target_url = request.args.get("url")
+    base_url = "https://" + urlparse(target_url).netloc
+    if not target_url:
+        return "URL no proporcionada", 400
+
+    # target_content = get_content_selenium(target_url)
+    target_content = get_content_requests(target_url)
+
+    soup = BeautifulSoup(target_content, "html.parser")
+
+    texts = []
     for text_element in soup.find_all(string=True):
-        if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
-            # Reemplaza la palabra sin afectar los estilos ni la estructura
-            #cleaned_text = text_element.replace("fuck", "")
-            original_text = text_element
-            if "<" in original_text.strip() or ">" in original_text.strip() or len(original_text.strip())  == 0 or "html" == text_element.strip():
-                continue
-
-            text_element.replace_with("🔥" + text_element.strip())
-            # new_text = f"+{original_text}"
-            # text_element.replace_with(new_text)
-
-    # replace all links in html
-    # Find all <a> tags
-    for link in soup.find_all('a'):
-        # Replace the href attribute with a new link (for example, replace it with 'https://new-link.com')
-        if link.get('href') is None:
+        if text_element.parent.name in ["script", "style"] or isinstance(text_element, Comment):
             continue
-        stem = url if link.get('href').startswith("/") else ""
-        if link.get('href'):
-            link['href'] = "http://localhost:5000/proxy?url=" + stem +  link['href']
-        # Alternatively, replace the entire content of the <a> tag
-        # link.string = "New Link Text"
+        if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
+            original_text = text_element.strip()
+            # Filter out empty strings and HTML tags
+            if (
+                "<" in original_text
+                or ">" in original_text
+                or len(original_text) == 0
+                or original_text.lower() == "html"
+            ):
+                continue
+            texts.append(original_text)
+
+    cached_translations = {}
+    texts_to_translate = []
+
+    for text in texts:
+        if translated_text := r.hget(target_url, text):
+            translated_text = translated_text.decode("utf-8")
+            print(f"{original_text} -> {translated_text} (cached)")
+            cached_translations[text] = translated_text
+        else:
+            print(f"{text} (not cached)")
+            texts_to_translate.append(text)
+
+    # Translate the text content of the page. Return a dictionary with the original text as the key and the translated text as the value
+    # print(texts_to_translate)
+    # translated_texts = translate_batch_parallel(texts_to_translate, src_lang_code="English", tgt_lang_code="Catalan")
+    translated_texts = {k: k for k in texts_to_translate}
+
+    for original_text, translated_text in translated_texts.items():
+        r.hset(target_url, original_text, translated_text)
+    
+    # print(translated_texts)
+    translated_texts.update(cached_translations)
+
+    # Reemplazar el texto original con el texto traducido
+    for original_text, translated_text in translated_texts.items():
+        for text_element in soup.find_all(string=True):
+            if original_text in text_element:
+                text_element.replace_with(translated_text)
+
+    # Reemplazar todos los enlaces en el HTML
+    for link in soup.find_all("a"):
+        if link.get("href") is None:
+            continue
+        stem = target_url if link.get("href").startswith("/") else ""
+        if link.get("href"):
+            link["href"] = "http://localhost:5000/proxy?url=" + stem + link["href"]
 
     # Get the modified HTML content
     modified_html = str(soup)
 
-    
     # # Reescribir los recursos estáticos (CSS, imágenes, etc.) para que apunten al proxy
     # for tag in soup.find_all(['link', 'script', 'img', "spreadsheet"]):
     #     if tag.name == 'link' and tag.get('href'):
@@ -69,25 +120,53 @@ def proxy():
     #     elif tag.name == 'spreadsheet' and tag.get('src'):
     #         tag['src'] = urljoin(url, tag['src'])
 
-    # # Convertir el HTML modificado en cadena para enviarlo
-    # modified_html = str(soup)
-    return Response(modified_html, content_type='text/html')
+    return render_template("iframe.html", content=modified_html)
+
+
+@app.route("/feedback", methods=["POST"])
+def feedback():
+    print("feedback")
+    # get json data
+    request_data = request.get_json()
+    print(request_data)
+    return {"status": "ok"}
+
+
+@app.route("/lookupTranslation", methods=["GET"])
+def get_translate():
+    url = request.args.get("url")
+    text = request.args.get("text")
+    print(url, text)
+    translations = r.hgetall(url)
+    if not translations:
+        print(translations)
+        return {"message": "No translations found"}, 404
+
+    for original, translation in translations.items():
+        original = original.decode("utf-8")
+        translation = translation.decode("utf-8")
+        if text in translation:
+            return {"originalText": original}, 200
+
+    print(translations)
+    return {"message": "No translations found"}, 404
+
 
 # @app.route('/<path:filename>')
 # allow ALL methods
-@app.route('/<path:filename>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route("/<path:filename>", methods=["GET", "POST", "PUT", "DELETE"])
 def serve_media(filename):
     global base_url
-
+    print("putilla")
     # Construir la URL completa para el recurso solicitado
     resource_url = urljoin(base_url, filename)
-    
+
     # Realizar la solicitud para obtener el recurso (imagen, CSS, etc.)
     try:
         resource_response = requests.get(resource_url)
         if resource_response.status_code == 200:
             # Determinar el tipo de recurso (imagen, CSS, etc.)
-            content_type = resource_response.headers.get('Content-Type')
+            content_type = resource_response.headers.get("Content-Type")
             return Response(resource_response.content, content_type=content_type)
         else:
             return "Resource not found", 404
@@ -95,5 +174,6 @@ def serve_media(filename):
         return str(e), 500
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    assert r.ping()
     app.run(debug=True)
