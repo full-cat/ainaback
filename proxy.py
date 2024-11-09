@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup, Comment, NavigableString
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 from flask_cors import CORS
+import json
 
 from inference import translate_batch_parallel, chatbot_single_sentence, tts_single_sentence, speech_recognition_single_audio
 
@@ -44,6 +45,43 @@ def get_content_selenium(target_url):
         driver.quit()
 
 
+brave_key = 'BSAnLBXo1M0ViAYxmnpWZwbUsLJ0hiR'
+search_url = 'https://api.search.brave.com/res/v1/web/search'
+
+
+@app.route('/search')
+def search():
+    query = request.args.get('q')
+    headers = {
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip',
+        'X-Subscription-Token': brave_key
+    }
+    response = requests.get(search_url, params={'q': query}, headers=headers)
+    # load the response from the file
+    # with open('calamar.json', 'r') as file:
+    #     response = file.read()
+    #parse the response to json
+    response = response.json()
+    texts_title = [result['title'] for result in response['web']['results']]
+    # print(texts_title)
+    texts_description = [result['description'] for result in response['web']['results']]
+    # print(texts_description)
+    translated_texts_title = translate_batch_parallel(texts_title, src_lang_code='Spanish', tgt_lang_code='Catalan')
+    translated_texts_description = translate_batch_parallel(texts_description, src_lang_code='Spanish', tgt_lang_code='Catalan')
+    print(translated_texts_title)
+    print(translated_texts_description)
+    for original_title, translated_title in translated_texts_title.items():
+        for result in response['web']['results']:
+            if result['title'] == original_title:
+                result['title'] = translated_title
+    for original_description, translated_description in translated_texts_description.items():
+        for result in response['web']['results']:
+            if result['description'] == original_description:
+                result['description'] = translated_description
+    return response
+
+
 @app.route("/proxy", methods=["GET"])
 def proxy():
     global base_url
@@ -63,7 +101,12 @@ def proxy():
         if isinstance(text_element, NavigableString) and not isinstance(text_element, Comment):
             original_text = text_element.strip()
             # Filter out empty strings and HTML tags
-            if "<" in original_text or ">" in original_text or len(original_text) == 0 or "html" == text_element or "{" in text_element or "}" in text_element:
+            if ("<" in original_text 
+                or ">" in original_text 
+                or len(original_text) == 0 
+                or "html" == text_element
+                or "{" in text_element 
+                or "}" in text_element):
                     continue
             text_elements.append(text_element)
             original_texts.append(original_text)
@@ -179,7 +222,10 @@ def speech_recognition():
 
     audio_file = request.files['audio']
     response = speech_recognition_single_audio(audio_file)
+    print(response)
+    response = response.split(":")[1].replace('"', '').replace("}", "")
     return {"response": response}
+
 
 
 # @app.route('/<path:filename>')
@@ -208,5 +254,5 @@ def serve_media(filename):
 
 if __name__ == "__main__":
     assert r.ping()
-    r.flushall()
+    # r.flushall()
     app.run()
