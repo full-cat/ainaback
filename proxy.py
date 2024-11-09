@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, Response, render_template
+from flask import Flask, jsonify, request, Response, render_template, send_file
 import requests
 import redis
 import time
@@ -205,14 +205,16 @@ def chatbot():
 
 @app.route("/tts", methods=["POST"])
 def tts():
-    sentence = request.args.get("sentence")
+    sentence = request.json.get("sentence")
     #Take voice args if present
     voice = request.args.get("voice")
     if voice:
-        response = tts_single_sentence(sentence, voice)
+        audio = tts_single_sentence(sentence, voice)
     else:
-        response = tts_single_sentence(sentence)
-    return {"response": response}
+        audio = tts_single_sentence(sentence)
+    # audio is webm bytes
+    return send_file("tts.webm", as_attachment=True, mimetype="audio/webm")
+    
 
 # content type audio/wav
 @app.route("/speech_recognition", methods=["POST"])

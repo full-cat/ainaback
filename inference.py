@@ -211,7 +211,18 @@ def tts_single_sentence(sentence, voice=25):
     try:
         response = requests.post(TTL_URL, headers=headers, json=data)
         response.raise_for_status()
-        return response.content
+
+        # to save the audio to a file
+        with open("tts.wav", "wb") as f:
+            f.write(response.content)
+        # export to webm
+        audio = AudioSegment.from_file("tts.wav", format="wav")
+        audio.export("tts.webm", format="webm")
+        # load tts.webm bytes
+        with open("tts.webm", "rb") as f:
+            audio = f.read()
+        return audio
+
     except requests.exceptions.RequestException as e:
         print(f"Error generating TTS response for sentence '{sentence}': {e}")
         return f"Error generating TTS response: {e}"
