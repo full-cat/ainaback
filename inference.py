@@ -30,6 +30,8 @@ def detect_language(sentence):
 
 
 
+## TRANSLATION RELATED FUNCTIONS
+
 def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
     """
     This function translates a single sentence from the source language to the target language
@@ -52,7 +54,7 @@ def translate_single_sentence(sentence, src_lang_code, tgt_lang_code):
 
     # Generate the prompt and payload for the individual translation request
     prompt = f'[{src_lang_code}] {sentence} \n[{tgt_lang_code}]'
-    payload = {"inputs": prompt, "parameters": {}}
+    payload = {"inputs": prompt, "parameters": {"max_tokens": 1000, "temperature": 0.001}}
     
 
     try:
@@ -112,47 +114,6 @@ def translate_batch_parallel(sentences, src_lang_code=None, tgt_lang_code='Catal
 
 
 
-def chatbot_single_sentence(sentence):
-    """
-    This function sends a single sentence to the chatbot model and returns the generated response
-    """
-
-    if not sentence:
-        return "input error"
-
-    model_name = "BSC-LT/salamandra-7b-instruct-aina-hack"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-    headers = {
-        "Accept" : "application/json",
-        "Authorization": f"Bearer {HF_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
-
-    message = [ { "role": "system", "content": system_prompt} ]
-    message += [ { "role": "user", "content": sentence } ]
-    prompt = tokenizer.apply_chat_template(
-        message,
-        tokenize=False,
-        add_generation_prompt=True,
-    )
-
-    payload = {
-        "inputs": prompt,
-        "parameters": {}
-    }
-
-    try:
-        response = requests.post(CHATBOT_URL + "/generate", headers=headers, json=payload, timeout=5)
-        response.raise_for_status()
-        return response.json()["generated_text"]
-    except requests.exceptions.RequestException as e:
-        print(f"Error generating chatbot response for sentence '{sentence}': {e}")
-        return f"Error generating chatbot response: {e}"
-
-
 
 def train_translation_model(sentences):
     """
@@ -184,4 +145,52 @@ def train_translation_model(sentences):
     # Update the model at the endpoint
     # ...
 
+
+
+
+## CHATBOT RELATED FUNCTIONS ##
+
+def chatbot_single_sentence(sentence):
+    """
+    This function sends a single sentence to the chatbot model and returns the generated response
+    """
+
+    if not sentence:
+        return "input error"
+
+    model_name = "BSC-LT/salamandra-7b-instruct-aina-hack"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    headers = {
+        "Accept" : "application/json",
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    system_prompt = "Respon sempre en cantalan amb respostes el més elaborades i llargues possibles"
+
+    message = [ { "role": "system", "content": system_prompt} ]
+    message += [ { "role": "user", "content": sentence } ]
+    prompt = tokenizer.apply_chat_template(
+        message,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+    payload = {
+        "inputs": prompt,
+        "parameters": {"max_tokens": 1000, "temperature": 0.5}
+    }
+
+    try:
+        response = requests.post(CHATBOT_URL + "/generate", headers=headers, json=payload, timeout=5)
+        response.raise_for_status()
+        return response.json()["generated_text"]
+    except requests.exceptions.RequestException as e:
+        print(f"Error generating chatbot response for sentence '{sentence}': {e}")
+        return f"Error generating chatbot response: {e}"
+
+
+
+## TTS RELATED FUNCTIONS ##
 
